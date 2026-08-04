@@ -1,10 +1,11 @@
+import allure
 import pytest
 
 from config.settings import settings
 from tests.api.clients.auth_client import AuthClient
 from tests.api.models.auth import LoginResponse, ValidateResponse
 
-pytestmark = pytest.mark.api
+pytestmark = [pytest.mark.api, allure.feature("Auth")]
 
 
 def test_login_with_valid_credentials_returns_a_token() -> None:

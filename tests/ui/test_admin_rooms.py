@@ -1,34 +1,15 @@
-from collections.abc import Iterator
-
+import allure
 import pytest
 from faker import Faker
 from playwright.sync_api import Page, expect
 
 from config.settings import settings
+from tests.ui.conftest import RoomCleanup
 from tests.ui.pages.admin_rooms_page import AdminRoomsPage
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui, allure.feature("Admin Rooms")]
 
 fake = Faker()
-
-
-@pytest.fixture
-def room_cleanup(page: Page) -> Iterator[list[int]]:
-    room_ids: list[int] = []
-
-    yield room_ids
-
-    if not room_ids:
-        return
-
-    login_response = page.request.post(
-        f"{settings.base_url}/api/auth/login",
-        data={"username": settings.admin_username, "password": settings.admin_password},
-    )
-    token = login_response.json()["token"]
-    page.context.add_cookies([{"name": "token", "value": token, "url": settings.base_url}])
-    for room_id in room_ids:
-        page.request.delete(f"{settings.base_url}/api/room/{room_id}")
 
 
 def _find_room_id_by_name(page: Page, room_name: str) -> int:
@@ -37,7 +18,7 @@ def _find_room_id_by_name(page: Page, room_name: str) -> int:
 
 
 def test_creating_a_room_makes_it_appear_in_the_room_list(
-    admin_page: Page, room_cleanup: list[int]
+    admin_page: Page, room_cleanup: RoomCleanup
 ) -> None:
     rooms_page = AdminRoomsPage(admin_page).open()
     room_name = str(fake.unique.random_int(min=500, max=99999))
@@ -49,19 +30,19 @@ def test_creating_a_room_makes_it_appear_in_the_room_list(
         price=321,
         features=["WiFi", "Safe"],
     )
+    # Registered for cleanup right after creation, before the assertion below,
+    # so a failed assertion still leaves this room queued for teardown.
+    room_cleanup.room_ids.append(_find_room_id_by_name(admin_page, room_name))
 
     expect(admin_page.locator(f"#roomName{room_name}")).to_be_visible()
-    room_cleanup.append(_find_room_id_by_name(admin_page, room_name))
 
 
-def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: list[int]) -> None:
+def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: RoomCleanup) -> None:
     room_name = str(fake.unique.random_int(min=500, max=99999))
-    login_response = admin_page.request.post(
-        f"{settings.base_url}/api/auth/login",
-        data={"username": settings.admin_username, "password": settings.admin_password},
-    )
-    token = login_response.json()["token"]
-    admin_page.context.add_cookies([{"name": "token", "value": token, "url": settings.base_url}])
+    # admin_page is already authenticated via a real UI form login (see the
+    # admin_page fixture in tests/ui/conftest.py), which sets the auth cookie
+    # in the browser - admin_page.request reuses that same cookie jar, so no
+    # extra login is needed here before calling the API directly.
     admin_page.request.post(
         f"{settings.base_url}/api/room",
         data={
@@ -74,7 +55,7 @@ def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: list
         },
     )
     room_id = _find_room_id_by_name(admin_page, room_name)
-    room_cleanup.append(room_id)
+    room_cleanup.room_ids.append(room_id)
     rooms_page = AdminRoomsPage(admin_page).open()
 
     rooms_page.open_room(room_name)
@@ -83,18 +64,18 @@ def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: list
     rooms_page.set_description("updated by an automated test")
     rooms_page.click_update()
 
-    expect(admin_page.get_by_text("250")).to_be_visible()
+    # Scoped to the read-only detail view's "Room price: <span>250</span>"
+    # element (verified live on 2026-08-04) rather than a page-wide
+    # get_by_text("250"), which would also match an unrelated "250" substring
+    # (e.g. a room name or a "£250.00" price tag) elsewhere on the page.
+    expect(rooms_page.room_price_value()).to_have_text("250")
     expect(admin_page.get_by_text("updated by an automated test")).to_be_visible()
 
 
-def test_room_detail_page_shows_its_bookings(admin_page: Page, room_cleanup: list[int]) -> None:
+def test_room_detail_page_shows_its_bookings(admin_page: Page, room_cleanup: RoomCleanup) -> None:
     room_name = str(fake.unique.random_int(min=500, max=99999))
-    login_response = admin_page.request.post(
-        f"{settings.base_url}/api/auth/login",
-        data={"username": settings.admin_username, "password": settings.admin_password},
-    )
-    token = login_response.json()["token"]
-    admin_page.context.add_cookies([{"name": "token", "value": token, "url": settings.base_url}])
+    # admin_page is already authenticated via a real UI form login - see the
+    # comment in test_editing_a_room_updates_its_details above.
     admin_page.request.post(
         f"{settings.base_url}/api/room",
         data={
@@ -107,8 +88,8 @@ def test_room_detail_page_shows_its_bookings(admin_page: Page, room_cleanup: lis
         },
     )
     room_id = _find_room_id_by_name(admin_page, room_name)
-    room_cleanup.append(room_id)
-    admin_page.request.post(
+    room_cleanup.room_ids.append(room_id)
+    booking_response = admin_page.request.post(
         f"{settings.base_url}/api/booking",
         data={
             "roomid": room_id,
@@ -118,6 +99,10 @@ def test_room_detail_page_shows_its_bookings(admin_page: Page, room_cleanup: lis
             "bookingdates": {"checkin": "2028-05-01", "checkout": "2028-05-03"},
         },
     )
+    # DELETE /api/room/{id} is not documented (or verified) to cascade-delete
+    # its bookings, so the booking created here needs its own explicit
+    # cleanup rather than assuming the room delete above takes care of it.
+    room_cleanup.booking_ids.append(booking_response.json()["bookingid"])
     rooms_page = AdminRoomsPage(admin_page).open()
 
     rooms_page.open_room(room_name)

@@ -1,3 +1,4 @@
+import allure
 from playwright.sync_api import Locator, Page
 
 from config.settings import settings
@@ -12,13 +13,15 @@ class ReservationPage:
         return self
 
     def click_reserve_now(self) -> None:
-        self.page.get_by_role("button", name="Reserve Now").click()
+        with allure.step("Click Reserve Now"):
+            self.page.get_by_role("button", name="Reserve Now").click()
 
     def fill_guest_details(self, firstname: str, lastname: str, email: str, phone: str) -> None:
-        self.page.get_by_placeholder("Firstname").fill(firstname)
-        self.page.get_by_placeholder("Lastname").fill(lastname)
-        self.page.get_by_placeholder("Email").fill(email)
-        self.page.get_by_placeholder("Phone").fill(phone)
+        with allure.step(f"Fill in guest details for {firstname} {lastname}"):
+            self.page.get_by_placeholder("Firstname").fill(firstname)
+            self.page.get_by_placeholder("Lastname").fill(lastname)
+            self.page.get_by_placeholder("Email").fill(email)
+            self.page.get_by_placeholder("Phone").fill(phone)
 
     def confirmation_heading(self) -> Locator:
         return self.page.get_by_role("heading", name="Booking Confirmed")

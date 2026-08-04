@@ -1,4 +1,5 @@
-from playwright.sync_api import Page
+import allure
+from playwright.sync_api import Locator, Page
 
 from config.settings import settings
 
@@ -23,13 +24,14 @@ class AdminRoomsPage:
     def create_room(
         self, room_name: str, room_type: str, accessible: bool, price: int, features: list[str]
     ) -> None:
-        self.page.locator("#roomName").fill(room_name)
-        self.page.locator("#type").select_option(room_type)
-        self.page.locator("#accessible").select_option("true" if accessible else "false")
-        self.page.locator("#roomPrice").fill(str(price))
-        for feature in features:
-            self.page.locator(f"#{CREATE_FORM_FEATURE_CHECKBOX_IDS[feature]}").check()
-        self.page.get_by_role("button", name="Create").click()
+        with allure.step(f"Create room '{room_name}' via the admin rooms form"):
+            self.page.locator("#roomName").fill(room_name)
+            self.page.locator("#type").select_option(room_type)
+            self.page.locator("#accessible").select_option("true" if accessible else "false")
+            self.page.locator("#roomPrice").fill(str(price))
+            for feature in features:
+                self.page.locator(f"#{CREATE_FORM_FEATURE_CHECKBOX_IDS[feature]}").check()
+            self.page.get_by_role("button", name="Create").click()
 
     def open_room(self, room_name: str) -> None:
         self.page.locator(f"#roomName{room_name}").click()
@@ -44,4 +46,12 @@ class AdminRoomsPage:
         self.page.locator("#description").fill(description)
 
     def click_update(self) -> None:
-        self.page.locator("#update").click()
+        with allure.step("Submit the room edit form"):
+            self.page.locator("#update").click()
+
+    def room_price_value(self) -> Locator:
+        # The read-only room detail view renders `<p>Room price: <span>{price}</span></p>`
+        # (verified live on 2026-08-04) - scoping to this specific <p>'s <span>
+        # avoids matching an unrelated "250" substring elsewhere on the page
+        # (e.g. a room name or a "£250.00" price tag).
+        return self.page.locator("p", has_text="Room price:").locator("span")

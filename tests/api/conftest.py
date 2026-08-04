@@ -12,27 +12,31 @@ from tests.api.factories.room_factory import random_room_payload
 
 @pytest.fixture(scope="session")
 def admin_token() -> str:
-    response = AuthClient().login(settings.admin_username, settings.admin_password)
-    assert response.status_code == 200, response.text
-    token = response.json()["token"]
-    assert isinstance(token, str) and token
-    return token
+    with AuthClient() as auth_client:
+        response = auth_client.login(settings.admin_username, settings.admin_password)
+        assert response.status_code == 200, response.text
+        token = response.json()["token"]
+        assert isinstance(token, str) and token
+        return token
 
 
 @pytest.fixture
-def room_client(admin_token: str) -> RoomClient:
-    return RoomClient(token=admin_token)
+def room_client(admin_token: str) -> Iterator[RoomClient]:
+    with RoomClient(token=admin_token) as client:
+        yield client
 
 
 @pytest.fixture
-def anon_room_client() -> RoomClient:
-    return RoomClient()
+def anon_room_client() -> Iterator[RoomClient]:
+    with RoomClient() as client:
+        yield client
 
 
 @pytest.fixture
 def created_room(room_client: RoomClient) -> Iterator[dict]:
     payload = random_room_payload()
-    room_client.create_room(payload)
+    create_response = room_client.create_room(payload)
+    assert create_response.status_code == 200, create_response.text
     rooms = room_client.list_rooms().json()["rooms"]
     room = next(r for r in rooms if r["roomName"] == payload["roomName"])
 
@@ -42,19 +46,23 @@ def created_room(room_client: RoomClient) -> Iterator[dict]:
 
 
 @pytest.fixture
-def booking_client(admin_token: str) -> BookingClient:
-    return BookingClient(token=admin_token)
+def booking_client(admin_token: str) -> Iterator[BookingClient]:
+    with BookingClient(token=admin_token) as client:
+        yield client
 
 
 @pytest.fixture
-def anon_booking_client() -> BookingClient:
-    return BookingClient()
+def anon_booking_client() -> Iterator[BookingClient]:
+    with BookingClient() as client:
+        yield client
 
 
 @pytest.fixture
 def created_booking(booking_client: BookingClient, created_room: dict) -> Iterator[dict]:
     payload = random_booking_payload(created_room["roomid"])
-    booking = booking_client.create_booking(payload).json()
+    create_response = booking_client.create_booking(payload)
+    assert create_response.status_code == 201, create_response.text
+    booking = create_response.json()
 
     yield booking
 

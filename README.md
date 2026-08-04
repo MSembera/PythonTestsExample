@@ -9,7 +9,7 @@ Portfolio project: an automated API + UI test suite for the [Restful Booker Plat
 - **pytest-playwright** — UI automation with a Page Object Model
 - **Faker** — disposable, randomized test data
 - **allure-pytest** — test reporting
-- **ruff** + **mypy** — linting, formatting, type checking
+- **ruff** + **mypy** — linting (import order, pyupgrade, bugbear rules) and static type checking; there is no `ruff format` / `[tool.ruff.format]` setup in this project, so code formatting is manual/editor-driven, not enforced by a tool
 - **uv** — dependency and environment management
 
 ## Project layout
@@ -19,6 +19,8 @@ Portfolio project: an automated API + UI test suite for the [Restful Booker Plat
 - `config/settings.py` — single source of configuration (base URL, admin credentials), read from `.env`.
 
 The two suites are intentionally independent: `tests/ui` never imports from `tests/api`. Where a UI test needs to set up or tear down data the UI itself cannot reach (the app has no UI to delete a room or a booking — see the plan doc below), it uses Playwright's `page.request`, which shares the browser's session, instead of reaching into the API test suite's clients.
+
+> **Note:** the target site is a shared public demo used by other testers too. Every test creates and tears down its own disposable data, but a failed test run (or a concurrent user's own testing) may occasionally leave stray rooms/bookings behind despite that cleanup design. That's expected and acceptable for a project against a live shared demo, not a bug to chase — see "Final verification" in the [implementation plan](docs/superpowers/plans/2026-08-04-test-automation-framework.md) for how to spot-check and manually clear any leftovers.
 
 ## Setup
 

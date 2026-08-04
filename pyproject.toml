@@ -21,7 +21,7 @@ dev = [
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "--alluredir=allure-results"
+addopts = "--alluredir=allure-results --screenshot=only-on-failure --video=retain-on-failure --tracing=retain-on-failure"
 markers = [
     "api: API tests against the Restful Booker Platform REST API",
     "ui: UI tests against the Restful Booker Platform website (Playwright)",
@@ -39,3 +39,13 @@ python_version = "3.12"
 strict = true
 disallow_any_generics = false
 ignore_missing_imports = true
+
+# allure-pytest ships no type annotations/stubs. Rather than sprinkling
+# `# type: ignore[no-untyped-call]` on every `allure.feature(...)`/
+# `allure.step(...)` call site, treat the package as untyped (like a module
+# with genuinely missing stubs) so calls into it aren't flagged under strict
+# mode - our own code is still fully strict-checked.
+[[tool.mypy.overrides]]
+module = ["allure", "allure.*", "allure_commons.*", "allure_pytest.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true

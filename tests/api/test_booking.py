@@ -1,10 +1,11 @@
+import allure
 import pytest
 
 from tests.api.clients.booking_client import BookingClient
 from tests.api.factories.booking_factory import random_booking_payload
-from tests.api.models.booking import Booking
+from tests.api.models.booking import Booking, BookingList
 
-pytestmark = pytest.mark.api
+pytestmark = [pytest.mark.api, allure.feature("Booking")]
 
 
 def test_create_booking_is_persisted(
@@ -13,18 +14,23 @@ def test_create_booking_is_persisted(
     payload = random_booking_payload(created_room["roomid"])
 
     response = anon_booking_client.create_booking(payload)
+    response_body = response.json()
+    created_bookingid = response_body.get("bookingid")
 
-    assert response.status_code == 201
-    body = Booking.model_validate(response.json())
-    assert body.roomid == created_room["roomid"]
-    assert body.firstname == payload["firstname"]
-    assert body.lastname == payload["lastname"]
-    assert body.bookingdates.model_dump() == payload["bookingdates"]
-
-    # Delete requires auth (DELETE /api/booking/{id} returns 403 without a
-    # token) - use the authenticated client for cleanup even though creation
-    # itself is anonymous/public.
-    booking_client.delete_booking(body.bookingid)
+    try:
+        assert response.status_code == 201
+        body = Booking.model_validate(response_body)
+        assert body.roomid == created_room["roomid"]
+        assert body.firstname == payload["firstname"]
+        assert body.lastname == payload["lastname"]
+        assert body.bookingdates.model_dump() == payload["bookingdates"]
+    finally:
+        # Delete requires auth (DELETE /api/booking/{id} returns 403 without a
+        # token) - use the authenticated client for cleanup even though creation
+        # itself is anonymous/public. Guard against a totally failed create
+        # (no bookingid in the response) so cleanup never crashes the teardown.
+        if created_bookingid is not None:
+            booking_client.delete_booking(created_bookingid)
 
 
 def test_create_booking_with_missing_lastname_is_rejected(
@@ -63,6 +69,27 @@ def test_get_booking_with_an_unknown_id_returns_not_found(booking_client: Bookin
     response = booking_client.get_booking(999999)
 
     assert response.status_code == 404
+
+
+def test_list_bookings_for_a_room_includes_the_created_booking(
+    created_booking: dict, created_room: dict, booking_client: BookingClient
+) -> None:
+    response = booking_client.list_bookings(created_room["roomid"])
+
+    assert response.status_code == 200
+    booking_list = BookingList.model_validate(response.json())
+    assert any(b.bookingid == created_booking["bookingid"] for b in booking_list.bookings)
+
+
+def test_list_bookings_without_a_room_id_is_rejected(booking_client: BookingClient) -> None:
+    # Verified live on 2026-08-04: GET /api/booking requires auth (401 without
+    # a token), and once authenticated, omitting the roomid query param is a
+    # separate 400 validation error - the client's list_bookings() always
+    # supplies roomid, so this negative case needs a dedicated client method.
+    response = booking_client.list_bookings_without_room_id()
+
+    assert response.status_code == 400
+    assert response.json() == {"error": "Room ID is required"}
 
 
 def test_update_booking_changes_its_fields(

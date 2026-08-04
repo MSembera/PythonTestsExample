@@ -1,10 +1,11 @@
+import allure
 import pytest
 
 from tests.api.clients.room_client import RoomClient
 from tests.api.factories.room_factory import random_room_payload
 from tests.api.models.room import Room, RoomList
 
-pytestmark = pytest.mark.api
+pytestmark = [pytest.mark.api, allure.feature("Room")]
 
 
 def test_create_room_is_visible_in_the_room_list(room_client: RoomClient) -> None:
@@ -14,15 +15,16 @@ def test_create_room_is_visible_in_the_room_list(room_client: RoomClient) -> Non
     room_list = RoomList.model_validate(room_client.list_rooms().json())
     created = next(r for r in room_list.rooms if r.roomName == payload["roomName"])
 
-    assert create_response.status_code == 200
-    assert create_response.json() == {"success": True}
-    assert created.type == payload["type"]
-    assert created.accessible == payload["accessible"]
-    assert created.roomPrice == payload["roomPrice"]
-    assert created.description == payload["description"]
-    assert sorted(created.features) == sorted(payload["features"])
-
-    room_client.delete_room(created.roomid)
+    try:
+        assert create_response.status_code == 200
+        assert create_response.json() == {"success": True}
+        assert created.type == payload["type"]
+        assert created.accessible == payload["accessible"]
+        assert created.roomPrice == payload["roomPrice"]
+        assert created.description == payload["description"]
+        assert sorted(created.features) == sorted(payload["features"])
+    finally:
+        room_client.delete_room(created.roomid)
 
 
 def test_create_room_without_authentication_is_rejected(anon_room_client: RoomClient) -> None:
@@ -30,6 +32,18 @@ def test_create_room_without_authentication_is_rejected(anon_room_client: RoomCl
 
     assert response.status_code == 401
     assert response.json() == {"errors": ["Authentication required"]}
+
+
+def test_create_room_with_missing_type_is_rejected(room_client: RoomClient) -> None:
+    payload = random_room_payload()
+    del payload["type"]
+
+    response = room_client.create_room(payload)
+
+    # Verified live on 2026-08-04: omitting the required `type` field returns
+    # 400 with a Java-bean-validation-style error message.
+    assert response.status_code == 400
+    assert response.json() == {"errors": ["Type must be set"]}
 
 
 def test_get_room_by_id_returns_its_details(created_room: dict, room_client: RoomClient) -> None:
