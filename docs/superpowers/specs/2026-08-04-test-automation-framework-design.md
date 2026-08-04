@@ -65,7 +65,7 @@ Testy jde spouštět zvlášť (`pytest -m api`, `pytest -m ui`) i dohromady, d�
 Každý test, který potřebuje entitu (booking/room), si ji **sám vytvoří a sám uklidí**:
 
 - **API testy:** fixture s `yield` – v setupu vytvoří entitu přes API s Faker daty, testu předá její ID/data, po testu (i při selhání testu) ji smaže v teardownu.
-- **UI testy:** obdobně, ale přes UI akce – např. admin test vytvoří pokoj přes formulář v adminu, otestuje ho, na konci ho smaže přes UI. Read-only public testy (browse rooms) pracují s existujícími daty; testy vytvářející booking si ho po sobě uklidí přes admin rozhraní.
+- **UI testy:** vytvoření entity jde přes UI, kde to jde (např. admin vytvoří pokoj přes formulář). Read-only public testy (browse rooms) pracují s existujícími daty. Mazání (pokoj i booking) ale **nemá v aplikaci žádnou UI cestu** (viz zjištění v sekci 5) – úklid po UI testech proto probíhá přes Playwrightův `page.request` (sdílí cookies s prohlížečem, takže využívá už přihlášenou admin session) volající přímo API, ne přes `tests.api` balíček – suity tak zůstávají nezávislé na úrovni kódu, i když teardown fakticky volá stejné REST API.
 - Žádný test nezávisí na pořadí spuštění ani na datech vytvořených jiným testem – testy musí být spustitelné nezávisle a opakovaně, protože jde o veřejné sdílené demo prostředí.
 
 ## 4. Error handling a odolnost testů
@@ -89,11 +89,13 @@ Každý test, který potřebuje entitu (booking/room), si ji **sám vytvoří a 
 
 **UI – admin panel:**
 - Přihlášení (úspěšné / neúspěšné)
-- Správa pokojů: vytvoření, editace, smazání pokoje
-- Správa rezervací: zobrazení seznamu, smazání rezervace
+- Správa pokojů: vytvoření, editace pokoje
+- Zobrazení rezervací u pokoje (read-only)
 - Odhlášení
 
 Cílem je z každé oblasti mít pár dobře napsaných testů (happy path + 1-2 negativní/edge case), které demonstrují návrh, ne kvantitu.
+
+> **Zjištěno při průzkumu aplikace (2026-08-04):** admin UI neumožňuje smazat pokoj ani rezervaci – mazání existuje jen na úrovni API (`DELETE /api/room/{id}`, `DELETE /api/booking/{id}`). V UI testech se tedy mazání použije pouze jako úklid dat vytvořených v testu (přes API v teardownu), ne jako testovaný UI krok. Detailní zjištěné API/UI chování je v [implementačním plánu](../plans/2026-08-04-test-automation-framework.md).
 
 ## Mimo rozsah (zatím)
 
