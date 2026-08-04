@@ -1,9 +1,22 @@
 from collections.abc import Iterator
 
 import pytest
-from playwright.sync_api import Page
+from playwright.sync_api import Page, expect
 
 from config.settings import settings
+from tests.ui.pages.admin_login_page import AdminLoginPage
+
+
+@pytest.fixture
+def admin_page(page: Page) -> Page:
+    AdminLoginPage(page).open().login(settings.admin_username, settings.admin_password)
+    # The login POST is async; without waiting for it to settle, an immediate
+    # page.goto() in a test (e.g. AdminRoomsPage.open()) cancels the in-flight
+    # request and the browser never becomes authenticated. Waiting for the
+    # post-login dashboard to render guarantees "already logged in" is true
+    # before handing the page back.
+    expect(page.get_by_role("button", name="Create")).to_be_visible()
+    return page
 
 
 @pytest.fixture
