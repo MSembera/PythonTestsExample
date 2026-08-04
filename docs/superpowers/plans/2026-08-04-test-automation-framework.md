@@ -24,7 +24,7 @@
 - `POST /api/auth/login` `{"username", "password"}` → `200 {"token": "<str>"}` on success; `401 {"error": "Invalid credentials"}` on failure.
 - `POST /api/auth/validate` `{"token"}` → `200 {"valid": true}` if valid; `403 {"error": "Invalid token"}` if invalid.
 - `POST /api/auth/logout` `{"token"}` → `200 {"success": true}`.
-- Auth is a cookie named `token` (not httpOnly). For `httpx`, set it directly via `cookies={"token": <value>}` on the client — no `Authorization` header is used.
+- Auth is a cookie named `token` (not httpOnly). For `httpx`, set it directly via `cookies={"token": <value>}` on the client — no `Authorization` header is used. **A real UI form login sets this cookie in the browser automatically. A `POST /api/auth/login` made through Playwright's `page.request` does not — the endpoint only returns the token in the JSON body, with no `Set-Cookie` header, when called that way.** Anywhere UI-test code logs in via `page.request` (not the login form) purely to authenticate later `page.request` calls, extract the token from the response and add it with `page.context.add_cookies([{"name": "token", "value": token, "url": settings.base_url}])` — verified live on 2026-08-04 during Task 5.
 
 **Room (`/api/room`):**
 - `GET /api/room` → `200 {"rooms": [{roomid, roomName, type, accessible, description, features: [...], roomPrice, image?}]}`.
@@ -1011,10 +1011,16 @@ def booking_cleanup(page: Page) -> Iterator[dict]:
     if not registered:
         return
 
-    page.request.post(
+    login_response = page.request.post(
         f"{settings.base_url}/api/auth/login",
         data={"username": settings.admin_username, "password": settings.admin_password},
     )
+    # The login endpoint returns the token only in the JSON body, not as a
+    # Set-Cookie header, when called via page.request - add it to the
+    # browser context's cookie jar ourselves so later page.request calls
+    # in this fixture are authenticated.
+    token = login_response.json()["token"]
+    page.context.add_cookies([{"name": "token", "value": token, "url": settings.base_url}])
     bookings = page.request.get(
         f"{settings.base_url}/api/booking", params={"roomid": registered["room_id"]}
     ).json()["bookings"]
@@ -1261,10 +1267,12 @@ def room_cleanup(page: Page) -> Iterator[list[int]]:
     if not room_ids:
         return
 
-    page.request.post(
+    login_response = page.request.post(
         f"{settings.base_url}/api/auth/login",
         data={"username": settings.admin_username, "password": settings.admin_password},
     )
+    token = login_response.json()["token"]
+    page.context.add_cookies([{"name": "token", "value": token, "url": settings.base_url}])
     for room_id in room_ids:
         page.request.delete(f"{settings.base_url}/api/room/{room_id}")
 
@@ -1290,10 +1298,12 @@ def test_creating_a_room_makes_it_appear_in_the_room_list(
 
 def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: list[int]) -> None:
     room_name = str(fake.unique.random_int(min=500, max=99999))
-    admin_page.request.post(
+    login_response = admin_page.request.post(
         f"{settings.base_url}/api/auth/login",
         data={"username": settings.admin_username, "password": settings.admin_password},
     )
+    token = login_response.json()["token"]
+    admin_page.context.add_cookies([{"name": "token", "value": token, "url": settings.base_url}])
     admin_page.request.post(
         f"{settings.base_url}/api/room",
         data={
@@ -1321,10 +1331,12 @@ def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: list
 
 def test_room_detail_page_shows_its_bookings(admin_page: Page, room_cleanup: list[int]) -> None:
     room_name = str(fake.unique.random_int(min=500, max=99999))
-    admin_page.request.post(
+    login_response = admin_page.request.post(
         f"{settings.base_url}/api/auth/login",
         data={"username": settings.admin_username, "password": settings.admin_password},
     )
+    token = login_response.json()["token"]
+    admin_page.context.add_cookies([{"name": "token", "value": token, "url": settings.base_url}])
     admin_page.request.post(
         f"{settings.base_url}/api/room",
         data={
