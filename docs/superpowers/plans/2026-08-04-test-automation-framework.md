@@ -1201,15 +1201,23 @@ class AdminRoomsPage:
 
 - [ ] **Step 3: Add the `admin_page` fixture to `tests/ui/conftest.py`**
 
-Append to the existing file (add the import at the top alongside the existing ones):
+Append to the existing file (add `expect` to the existing `from playwright.sync_api import Page` import, and add the `AdminLoginPage` import alongside the existing ones):
 
 ```python
+from playwright.sync_api import expect
+
 from tests.ui.pages.admin_login_page import AdminLoginPage
 
 
 @pytest.fixture
 def admin_page(page: Page) -> Page:
     AdminLoginPage(page).open().login(settings.admin_username, settings.admin_password)
+    # login() clicks Login and returns immediately - the POST /api/auth/login
+    # it triggers is still in flight. An immediate page.goto() in a test (e.g.
+    # AdminRoomsPage.open()) cancels that in-flight request before the auth
+    # cookie is ever set. Waiting for the post-login UI to render guarantees
+    # "already logged in" is true before handing the page back.
+    expect(page.get_by_role("button", name="Create")).to_be_visible()
     return page
 ```
 
@@ -1279,7 +1287,7 @@ def room_cleanup(page: Page) -> Iterator[list[int]]:
 
 def _find_room_id_by_name(page: Page, room_name: str) -> int:
     rooms = page.request.get(f"{settings.base_url}/api/room").json()["rooms"]
-    return next(r["roomid"] for r in rooms if r["roomName"] == room_name)
+    return int(next(r["roomid"] for r in rooms if r["roomName"] == room_name))
 
 
 def test_creating_a_room_makes_it_appear_in_the_room_list(
@@ -1289,7 +1297,11 @@ def test_creating_a_room_makes_it_appear_in_the_room_list(
     room_name = str(fake.unique.random_int(min=500, max=99999))
 
     rooms_page.create_room(
-        room_name=room_name, room_type="Suite", accessible=True, price=321, features=["WiFi", "Safe"]
+        room_name=room_name,
+        room_type="Suite",
+        accessible=True,
+        price=321,
+        features=["WiFi", "Safe"],
     )
 
     expect(admin_page.locator(f"#roomName{room_name}")).to_be_visible()
