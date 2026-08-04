@@ -8,13 +8,34 @@
 
 **Tech Stack:** Python 3.12+, uv, pytest, httpx, pydantic / pydantic-settings, Faker, pytest-playwright, allure-pytest, ruff, mypy.
 
+## Post-implementation addendum (final whole-branch review fix pass, 2026-08-04)
+
+All 7 tasks below were implemented and individually reviewed, landing at 30 tests (22 API + 8 UI). A final whole-branch review then found several cross-cutting issues invisible at task scope, all fixed in one consolidated pass (commit `0104dac`). The task sections below are left as originally written (they're an accurate record of what was planned and built first); this addendum records what changed afterward so the plan stays truthful as a whole:
+
+- **Cleanup ordering:** in `tests/api/test_room.py`, `tests/api/test_booking.py`, `tests/ui/test_admin_rooms.py`, and `tests/ui/test_public_booking.py`, cleanup registration/execution was moved so it's guaranteed even when the test's own assertions fail (`try`/`finally` on the API side, earlier registration with the cleanup fixture on the UI side).
+- **`test_room_detail_page_shows_its_bookings`** now also deletes the booking it creates (not just the room) — the UI `room_cleanup` fixture (moved into `tests/ui/conftest.py`, see below) became a `RoomCleanup` dataclass tracking both `room_ids` and `booking_ids`.
+- **Reporting:** `pyproject.toml`'s `addopts` gained `--screenshot=only-on-failure --video=retain-on-failure --tracing=retain-on-failure` per the design spec. `allure.feature(...)` was added per test file, and `allure.step(...)` wraps the most meaningful Page Object actions (not every line). mypy needed a `[[tool.mypy.overrides]]` for the untyped `allure` package.
+- **`test_editing_a_room_updates_its_details`** now asserts the room price via a locator scoped to `Room price: <span>` instead of a page-wide `get_by_text("250")`, which could substring-match an unrelated "250" elsewhere on the page.
+- **`test_booking_a_room_shows_a_confirmation`** no longer books the shared seeded "Suite" room — it creates a disposable room via `page.request` and books that instead (far-future dates, same pattern as the sibling validation test), while still exercising `HomePage.book_now_link` for the room-listing assertion.
+- **DRY:** the repeated `page.request` login + `page.context.add_cookies(...)` block was extracted into `authenticate_via_api(page)` in `tests/ui/conftest.py`. The two `test_admin_rooms.py` test bodies that redundantly re-logged in (when `admin_page`'s real UI-form login had already set the cookie) had that dead work removed rather than defensively kept.
+- **API fixtures** (`created_room`, `created_booking` in `tests/api/conftest.py`) now assert the creation call's status code before proceeding, so a failed live-site creation fails with a clear message instead of a confusing `StopIteration`/`KeyError` in teardown.
+- **`httpx.Client` lifecycle:** `AuthClient`/`RoomClient`/`BookingClient` gained `__enter__`/`__exit__`; the conftest fixtures that construct them now use `with ... as client: yield client` so connections are closed.
+- **New tests, correcting two "Known facts" below:**
+  - `test_list_bookings_for_a_room_includes_the_created_booking` / `test_list_bookings_without_a_room_id_is_rejected` (`tests/api/test_booking.py`) — live-verified that **`GET /api/booking` actually requires authentication**: unauthenticated + no `roomid` returns `401 {"error": "Authentication required"}`, not the `400` this plan originally documented. Only once authenticated does omitting `roomid` produce `400 {"error": "Room ID is required"}`.
+  - `test_create_room_with_missing_type_is_rejected` (`tests/api/test_room.py`) — closes a spec-mandated Room negative-case gap; `POST /api/room` with `type` omitted returns `400 {"errors": ["Type must be set"]}`.
+  - `test_logout_returns_to_a_logged_out_state` (`tests/ui/test_admin_login.py`) — closes the spec's admin-logout gap; live-verified that clicking `Logout` navigates to the public home page, and a fresh `/admin` visit afterward shows the login form again (session is really gone, not just the current view).
+- **`room_cleanup`** moved from `tests/ui/test_admin_rooms.py` into `tests/ui/conftest.py` alongside `booking_cleanup`, for fixture-placement consistency.
+- **Housekeeping:** one-line comment in `config/settings.py` explaining the default admin/password credentials are the intended public demo credentials, not a secret; `README.md` corrected (ruff does linting/type-checking here, not formatting — no `ruff format` is configured) and gained a note that the shared public demo may occasionally show stray data from other concurrent testers, which is expected and not this suite's bug.
+
+**Final state: 34 tests (25 API + 9 UI), all passing; `ruff check` and `mypy` both clean.**
+
 ## Global Constraints
 
 - Package/env management: `uv` (not pip/poetry) — every command below is `uv run ...`.
 - Test runner: `pytest`, with two custom markers, `api` and `ui`, registered in `pyproject.toml` so each suite can run independently (`uv run pytest -m api`, `uv run pytest -m ui`).
 - No CI/CD in this plan — explicitly deferred per the spec.
 - Base URL: `https://automationintesting.online` (public shared demo — see "Known facts about the real app" below for real, verified behavior; do not assume undocumented REST conventions).
-- Admin credentials for this demo: username `admin`, password `password` (публично known/intended demo credentials for this training site — safe to ship as defaults in `.env.example`).
+- Admin credentials for this demo: username `admin`, password `password` (publicly known/intended demo credentials for this training site — safe to ship as defaults in `.env.example`).
 - All code must pass `uv run ruff check .` and `uv run mypy .` before a task is considered done.
 - Every test file must carry `pytestmark = pytest.mark.api` or `pytestmark = pytest.mark.ui`.
 
@@ -35,7 +56,7 @@
 - Room fields: `roomName: str`, `type: str` (`Single`/`Twin`/`Double`/`Family`/`Suite`), `accessible: bool`, `roomPrice: int`, `description: str`, `features: list[str]` (subset of `WiFi`/`TV`/`Radio`/`Refreshments`/`Safe`/`Views`).
 
 **Booking (`/api/booking`):**
-- `GET /api/booking?roomid={id}` → `200 {"bookings": [{bookingid, roomid, firstname, lastname, depositpaid, bookingdates: {checkin, checkout}}]}`. **`roomid` query param is required** — omitting it returns `400 {"error": "Room ID is required"}`.
+- `GET /api/booking?roomid={id}` (**auth required**, corrected during the final review fix pass — see addendum above) → `200 {"bookings": [{bookingid, roomid, firstname, lastname, depositpaid, bookingdates: {checkin, checkout}}]}`. No auth → `401 {"error": "Authentication required"}` regardless of `roomid`. Once authenticated, **`roomid` query param is required** — omitting it returns `400 {"error": "Room ID is required"}`.
 - `GET /api/booking/{id}` → `200 <booking>`; unknown id → `404` (empty body, this one *does* 404 correctly).
 - `POST /api/booking` (**no auth required — public**) `{"roomid", "firstname", "lastname", "depositpaid", "bookingdates": {"checkin", "checkout"}}` → `201 <created booking incl. bookingid>`. Missing required field (e.g. `lastname`) → `400 {"errors": ["Lastname should not be blank"]}`. `checkout` before `checkin` → `409 {"error": "Failed to create booking"}`.
 - `PUT /api/booking/{id}` (auth required) → `200 {"booking": {...}, "bookingid": id}`. No auth → `403` (empty body). Overlapping dates with an existing booking on that room (including the booking's own current dates) → `409` (empty body) — always pick genuinely free dates when updating.
