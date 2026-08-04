@@ -4,7 +4,9 @@ import pytest
 
 from config.settings import settings
 from tests.api.clients.auth_client import AuthClient
+from tests.api.clients.booking_client import BookingClient
 from tests.api.clients.room_client import RoomClient
+from tests.api.factories.booking_factory import random_booking_payload
 from tests.api.factories.room_factory import random_room_payload
 
 
@@ -37,3 +39,23 @@ def created_room(room_client: RoomClient) -> Iterator[dict]:
     yield room
 
     room_client.delete_room(room["roomid"])
+
+
+@pytest.fixture
+def booking_client(admin_token: str) -> BookingClient:
+    return BookingClient(token=admin_token)
+
+
+@pytest.fixture
+def anon_booking_client() -> BookingClient:
+    return BookingClient()
+
+
+@pytest.fixture
+def created_booking(booking_client: BookingClient, created_room: dict) -> Iterator[dict]:
+    payload = random_booking_payload(created_room["roomid"])
+    booking = booking_client.create_booking(payload).json()
+
+    yield booking
+
+    booking_client.delete_booking(booking["bookingid"])
