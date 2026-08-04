@@ -1,0 +1,41 @@
+[project]
+name = "python-tests-example"
+version = "0.1.0"
+description = "Automated API + UI test suite for the Restful Booker Platform demo (portfolio project)."
+requires-python = ">=3.12"
+dependencies = [
+    "pytest>=8.3",
+    "pytest-playwright>=0.5",
+    "httpx>=0.27",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "faker>=30.0",
+    "allure-pytest>=2.13",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "--alluredir=allure-results"
+markers = [
+    "api: API tests against the Restful Booker Platform REST API",
+    "ui: UI tests against the Restful Booker Platform website (Playwright)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_any_generics = false
+ignore_missing_imports = true
