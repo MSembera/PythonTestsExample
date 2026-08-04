@@ -8,7 +8,7 @@ pytestmark = pytest.mark.api
 
 
 def test_create_booking_is_persisted(
-    created_room: dict, anon_booking_client: BookingClient
+    created_room: dict, anon_booking_client: BookingClient, booking_client: BookingClient
 ) -> None:
     payload = random_booking_payload(created_room["roomid"])
 
@@ -21,7 +21,10 @@ def test_create_booking_is_persisted(
     assert body.lastname == payload["lastname"]
     assert body.bookingdates.model_dump() == payload["bookingdates"]
 
-    anon_booking_client.delete_booking(body.bookingid)
+    # Delete requires auth (DELETE /api/booking/{id} returns 403 without a
+    # token) - use the authenticated client for cleanup even though creation
+    # itself is anonymous/public.
+    booking_client.delete_booking(body.bookingid)
 
 
 def test_create_booking_with_missing_lastname_is_rejected(
