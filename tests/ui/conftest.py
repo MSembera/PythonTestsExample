@@ -52,11 +52,23 @@ def booking_cleanup(page: Page) -> Iterator[dict]:
         f"{settings.base_url}/api/booking", params={"roomid": registered["room_id"]}
     ).json()["bookings"]
     match = next(
-        b
-        for b in bookings
-        if b["firstname"] == registered["firstname"] and b["lastname"] == registered["lastname"]
+        (
+            b
+            for b in bookings
+            if b["firstname"] == registered["firstname"]
+            and b["lastname"] == registered["lastname"]
+        ),
+        None,
     )
-    page.request.delete(f"{settings.base_url}/api/booking/{match['bookingid']}")
+    # Registration happens before form submission (see the comment at the
+    # call site in test_public_booking.py), so a test that fails before the
+    # booking is actually created reaches teardown with `registered`
+    # populated but no matching booking on the server - guard against that
+    # instead of letting next() raise StopIteration on top of the real
+    # failure (mirrors the `if created_bookingid is not None` guard in
+    # tests/api/test_booking.py).
+    if match is not None:
+        page.request.delete(f"{settings.base_url}/api/booking/{match['bookingid']}")
 
 
 @dataclass

@@ -30,11 +30,18 @@ def test_creating_a_room_makes_it_appear_in_the_room_list(
         price=321,
         features=["WiFi", "Safe"],
     )
-    # Registered for cleanup right after creation, before the assertion below,
-    # so a failed assertion still leaves this room queued for teardown.
-    room_cleanup.room_ids.append(_find_room_id_by_name(admin_page, room_name))
-
-    expect(admin_page.locator(f"#roomName{room_name}")).to_be_visible()
+    # create_room()'s final click fires an async POST /api/room. The
+    # page.request lookup below hits the API directly and shares cookies with
+    # the browser but not scheduling, so calling it immediately can race the
+    # server-side commit and raise StopIteration. expect(...).to_be_visible()
+    # relies on Playwright's auto-waiting, so it only passes once the UI has
+    # re-rendered with server-confirmed data - use it as the synchronization
+    # barrier before looking the room up, while still registering the room
+    # for cleanup (via finally) even if the assertion itself fails.
+    try:
+        expect(admin_page.locator(f"#roomName{room_name}")).to_be_visible()
+    finally:
+        room_cleanup.room_ids.append(_find_room_id_by_name(admin_page, room_name))
 
 
 def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: RoomCleanup) -> None:

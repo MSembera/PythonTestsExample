@@ -17,6 +17,8 @@ Cílem je **hloubka a kvalita architektury**, ne kvantita testů. Preferujeme me
 
 Jeden repozitář spravovaný přes **uv**, se dvěma nezávislými sadami testů (API a UI), které sdílí jen minimum společné infrastruktury (konfigurace, generování testovacích dat). API a UI testy na sebe úmyslně nezávisí (žádné API-driven setup pro UI testy) – jde o dvě oddělené, samostatně spustitelné kompetence.
 
+> **Dodatek (final review fix pass, 2026-08-04):** jedna výjimka z výše uvedeného pravidla existuje - `test_booking_a_room_shows_a_confirmation` (`tests/ui/test_public_booking.py`) si přes `page.request` vytváří jednorázový pokoj ještě před samotným bookováním přes UI. Důvod: na sdíleném veřejném demu neexistuje jiný bezpečný způsob, jak získat pokoj, který se nemůže srazit s daty skutečného návštěvníka. Jde o cílenou, zdokumentovanou výjimku (viz "Post-implementation addendum" v [implementačním plánu](../plans/2026-08-04-test-automation-framework.md)), ne o rozšíření principu jako takového - suity zůstávají na úrovni kódu nezávislé (`tests/ui` neimportuje z `tests/api`), teardown i tady jde přes `page.request`, ne přes `tests.api` balíček.
+
 ```
 PythonTestsExample/
 ├── pyproject.toml          # uv, pytest, ruff, mypy config
@@ -53,7 +55,7 @@ Testy jde spouštět zvlášť (`pytest -m api`, `pytest -m ui`) i dohromady, d�
 | Testovací data | `Faker` | náhodná data pro Booking/Room, aby se testy nebily se sdíleným demem |
 | Konfigurace | `pydantic-settings` + `.env` | base URL, admin credentials, žádné hardcoded hodnoty |
 | Reporting | `allure-pytest` | grafický report, kroky, screenshoty při selhání |
-| Kvalita kódu | `ruff` (lint+format) + `mypy` | konzistentní styl, typová kontrola |
+| Kvalita kódu | `ruff` (jen lint) + `mypy` | konzistentní styl, typová kontrola; `ruff format` / `[tool.ruff.format]` v projektu není nastaven, formátování kódu tedy tento nástroj nevynucuje |
 | CI/CD | GitHub Actions | **později**, jako samostatný krok mimo tento návrh |
 
 **Auth handling (API):** fixture `admin_token` se zaloguje přes `AuthClient` a token/cookie poskytne ostatním testům, které to potřebují (např. mazání pokoje vyžaduje auth).
@@ -101,7 +103,7 @@ Cílem je z každé oblasti mít pár dobře napsaných testů (happy path + 1-2
 
 - CI/CD pipeline (GitHub Actions) – přidá se jako samostatný krok po dokončení testovací sady
 - Message/Report API endpoint – jen okrajově, není priorita
-- Hybridní API+UI testy (API setup pro UI testy) – zvažováno, ale zamítnuto ve prospěch čistě oddělených sad
+- Hybridní API+UI testy (API setup pro UI testy) jako obecný princip – zvažováno, ale zamítnuto ve prospěch čistě oddělených sad; jedna cílená výjimka (jednorázový pokoj v `test_booking_a_room_shows_a_confirmation`) byla nakonec zavedena z nutnosti - viz dodatek u sekce 1
 
 ## Repozitář
 

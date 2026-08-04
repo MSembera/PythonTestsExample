@@ -25,7 +25,14 @@ def test_home_page_lists_the_available_rooms(page: Page) -> None:
 
 
 def test_booking_a_room_shows_a_confirmation(
-    page: Page, room_cleanup: RoomCleanup, booking_cleanup: dict
+    # Fixture teardown runs in reverse declaration order, so listing
+    # room_cleanup before booking_cleanup here makes booking_cleanup's
+    # teardown (deleting the booking) run before room_cleanup's (deleting
+    # the room it belongs to) - the room should still exist when the
+    # booking delete happens. Keep this order if either fixture list grows.
+    page: Page,
+    room_cleanup: RoomCleanup,
+    booking_cleanup: dict,
 ) -> None:
     # Prove the home page's "Book now" link navigates to a reservation page
     # (test_home_page_lists_the_available_rooms already covers the room
@@ -47,7 +54,14 @@ def test_booking_a_room_shows_a_confirmation(
         f"{settings.base_url}/api/room",
         data={
             "roomName": room_name,
-            "type": "Suite",
+            # "Twin" is not one of the room types asserted on elsewhere in
+            # this file (test_home_page_lists_the_available_rooms checks
+            # "Single"/"Double"/"Suite" with exact=True, a strict-mode
+            # locator that fails on more than one match) - using a
+            # different type here avoids any chance of this disposable
+            # room colliding with that assertion if both happen to exist
+            # at the same moment.
+            "type": "Twin",
             "accessible": True,
             "roomPrice": 225,
             "description": "disposable room for booking confirmation test",

@@ -48,4 +48,3 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["allure", "allure.*", "allure_commons.*", "allure_pytest.*"]
 follow_imports = "skip"
-follow_imports_for_stubs = true
