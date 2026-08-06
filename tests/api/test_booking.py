@@ -82,7 +82,7 @@ def test_list_bookings_for_a_room_includes_the_created_booking(
 
 
 def test_list_bookings_without_a_room_id_is_rejected(booking_client: BookingClient) -> None:
-    # Verified live on 2026-08-04: GET /api/booking requires auth (401 without
+    # GET /api/booking requires auth (401 without
     # a token), and once authenticated, omitting the roomid query param is a
     # separate 400 validation error - the client's list_bookings() always
     # supplies roomid, so this negative case needs a dedicated client method.

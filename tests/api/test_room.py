@@ -40,8 +40,6 @@ def test_create_room_with_missing_type_is_rejected(room_client: RoomClient) -> N
 
     response = room_client.create_room(payload)
 
-    # Verified live on 2026-08-04: omitting the required `type` field returns
-    # 400 with a Java-bean-validation-style error message.
     assert response.status_code == 400
     assert response.json() == {"errors": ["Type must be set"]}
 
@@ -56,7 +54,7 @@ def test_get_room_by_id_returns_its_details(created_room: dict, room_client: Roo
 
 
 def test_get_room_with_an_unknown_id_returns_server_error(room_client: RoomClient) -> None:
-    # Known quirk of this demo API: an unknown room id returns 500, not 404.
+    # an unknown room id returns 500, not 404.
     response = room_client.get_room(999999)
 
     assert response.status_code == 500

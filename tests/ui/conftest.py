@@ -1,11 +1,54 @@
-from collections.abc import Iterator
+import os
+from collections.abc import Generator, Iterator
 from dataclasses import dataclass, field
 
+import allure
 import pytest
 from playwright.sync_api import Page, expect
 
 from config.settings import settings
 from tests.ui.pages.admin_login_page import AdminLoginPage
+
+_ATTACHMENT_TYPES = {
+    ".png": allure.attachment_type.PNG,
+    ".webm": allure.attachment_type.WEBM,
+    ".zip": allure.attachment_type.ZIP,
+}
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item, call: pytest.CallInfo
+) -> Generator[None, None, None]:
+    """Attach Playwright's on-failure screenshot/video/trace to the Allure report.
+
+    pytest-playwright's --screenshot/--video/--tracing flags only save these
+    files to its own `test-results/` directory - they are never attached to
+    Allure on their own, since the two tools don't know about each other.
+    `output_path` is pytest-playwright's own fixture for that directory, and
+    it's already resolved for every test that uses `page` (it's a transitive
+    dependency via `_artifacts_recorder`), so we can read it back here
+    without recomputing the path ourselves. This must run in the "teardown"
+    report phase, after `item.funcargs` are set but also after pytest-playwright
+    has finished writing the files during its own fixture teardown - both are
+    true by the time this phase's report is generated.
+    """
+    yield
+    if call.when != "teardown":
+        return
+    rep_call = getattr(item, "rep_call", None)
+    if rep_call is None or not rep_call.failed:
+        return
+    output_path = getattr(item, "funcargs", {}).get("output_path")
+    if not output_path or not os.path.isdir(output_path):
+        return
+    for file_name in sorted(os.listdir(output_path)):
+        attachment_type = _ATTACHMENT_TYPES.get(os.path.splitext(file_name)[1])
+        if attachment_type is None:
+            continue
+        allure.attach.file(
+            os.path.join(output_path, file_name), name=file_name, attachment_type=attachment_type
+        )
 
 
 def authenticate_via_api(page: Page) -> None:

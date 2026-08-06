@@ -50,8 +50,4 @@ class AdminRoomsPage:
             self.page.locator("#update").click()
 
     def room_price_value(self) -> Locator:
-        # The read-only room detail view renders `<p>Room price: <span>{price}</span></p>`
-        # (verified live on 2026-08-04) - scoping to this specific <p>'s <span>
-        # avoids matching an unrelated "250" substring elsewhere on the page
-        # (e.g. a room name or a "£250.00" price tag).
         return self.page.locator("p", has_text="Room price:").locator("span")

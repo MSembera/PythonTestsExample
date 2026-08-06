@@ -1,6 +1,6 @@
 # Restful Booker Platform — Test Automation Suite
 
-Portfolio project: an automated API + UI test suite for the [Restful Booker Platform](https://github.com/mwinteringham/restful-booker-platform) demo hosted at https://automationintesting.online/.
+An automated API + UI test suite for the [Restful Booker Platform](https://github.com/mwinteringham/restful-booker-platform) demo hosted at https://automationintesting.online/.
 
 ## Stack
 
@@ -18,17 +18,19 @@ Portfolio project: an automated API + UI test suite for the [Restful Booker Plat
 - `tests/ui/` — UI tests (public booking flow, admin login, admin room management) using Playwright, with Page Objects under `pages/`.
 - `config/settings.py` — single source of configuration (base URL, admin credentials), read from `.env`.
 
-The two suites are intentionally independent: `tests/ui` never imports from `tests/api`. Where a UI test needs to set up or tear down data the UI itself cannot reach (the app has no UI to delete a room or a booking — see the plan doc below), it uses Playwright's `page.request`, which shares the browser's session, instead of reaching into the API test suite's clients.
+The two suites are intentionally independent: `tests/ui` never imports from `tests/api`. Where a UI test needs to set up or tear down data the UI itself cannot reach (the app has no UI to delete a room or a booking — see [app-behavior-notes.md](docs/app-behavior-notes.md)), it uses Playwright's `page.request`, which shares the browser's session, instead of reaching into the API test suite's clients.
 
-> **Note:** the target site is a shared public demo used by other testers too. Every test creates and tears down its own disposable data, but a failed test run (or a concurrent user's own testing) may occasionally leave stray rooms/bookings behind despite that cleanup design. That's expected and acceptable for a project against a live shared demo, not a bug to chase — see "Final verification" in the [implementation plan](docs/superpowers/plans/2026-08-04-test-automation-framework.md) for how to spot-check and manually clear any leftovers.
+> **Note:** the target site is a shared public demo used by other testers too. Every test creates and tears down its own disposable data, but a failed test run (or a concurrent user's own testing) may occasionally leave stray rooms/bookings behind despite that cleanup design. That's expected and acceptable for a project against a live shared demo, not a bug to chase. If you want to spot-check for leftovers, `GET /api/room` should only ever show the 3 seeded rooms (101/102/103); anything else can be removed via `DELETE /api/room/{id}` with an admin token.
 
 ## Setup
 
 ```bash
 uv sync
 uv run playwright install chromium
-cp .env.example .env  # defaults already point at the public demo
+cp .env.example .env
 ```
+
+Then fill in `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env`. This target is a public training demo with a documented, non-secret admin account (`admin` / `password` — see the app's own README at https://github.com/mwinteringham/restful-booker-platform); against a real application these would be per-environment test credentials injected via `.env` or CI secrets, never committed. `.env` is gitignored either way — only `.env.example` (with empty placeholders) is tracked.
 
 ## Running the tests
 
@@ -55,4 +57,4 @@ uv run mypy .
 
 ## Design notes
 
-Full design rationale and the exact, verified API/UI behavior this suite is built against are documented in [`docs/superpowers/specs/2026-08-04-test-automation-framework-design.md`](docs/superpowers/specs/2026-08-04-test-automation-framework-design.md) and [`docs/superpowers/plans/2026-08-04-test-automation-framework.md`](docs/superpowers/plans/2026-08-04-test-automation-framework.md).
+Design rationale is documented in [`docs/design.md`](docs/design.md); the exact, verified API/UI behavior this suite is built against is in [`docs/app-behavior-notes.md`](docs/app-behavior-notes.md).

@@ -45,8 +45,7 @@ def test_booking_a_room_shows_a_confirmation(
     book_now_link.click()
     expect(page).to_have_url(re.compile(r"/reservation/\d+"))
 
-    # Create a disposable room via the API (same auth pattern as
-    # tests/ui/test_admin_rooms.py) so the booking below can't collide with a
+    # Create a disposable room via the API so the booking below can't collide with a
     # real visitor's data.
     authenticate_via_api(page)
     room_name = str(fake.unique.random_int(min=500, max=99999))

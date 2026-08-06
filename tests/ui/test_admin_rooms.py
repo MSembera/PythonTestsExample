@@ -46,10 +46,7 @@ def test_creating_a_room_makes_it_appear_in_the_room_list(
 
 def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: RoomCleanup) -> None:
     room_name = str(fake.unique.random_int(min=500, max=99999))
-    # admin_page is already authenticated via a real UI form login (see the
-    # admin_page fixture in tests/ui/conftest.py), which sets the auth cookie
-    # in the browser - admin_page.request reuses that same cookie jar, so no
-    # extra login is needed here before calling the API directly.
+    # admin_page is already authenticated via a real UI form login
     admin_page.request.post(
         f"{settings.base_url}/api/room",
         data={
@@ -81,8 +78,7 @@ def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: Room
 
 def test_room_detail_page_shows_its_bookings(admin_page: Page, room_cleanup: RoomCleanup) -> None:
     room_name = str(fake.unique.random_int(min=500, max=99999))
-    # admin_page is already authenticated via a real UI form login - see the
-    # comment in test_editing_a_room_updates_its_details above.
+    # admin_page is already authenticated via a real UI form login
     admin_page.request.post(
         f"{settings.base_url}/api/room",
         data={
@@ -106,9 +102,7 @@ def test_room_detail_page_shows_its_bookings(admin_page: Page, room_cleanup: Roo
             "bookingdates": {"checkin": "2028-05-01", "checkout": "2028-05-03"},
         },
     )
-    # DELETE /api/room/{id} is not documented (or verified) to cascade-delete
-    # its bookings, so the booking created here needs its own explicit
-    # cleanup rather than assuming the room delete above takes care of it.
+
     room_cleanup.booking_ids.append(booking_response.json()["bookingid"])
     rooms_page = AdminRoomsPage(admin_page).open()
 

@@ -1,7 +1,7 @@
 [project]
 name = "python-tests-example"
 version = "0.1.0"
-description = "Automated API + UI test suite for the Restful Booker Platform demo (portfolio project)."
+description = "Automated API + UI test suite for the Restful Booker Platform demo."
 requires-python = ">=3.12"
 dependencies = [
     "pytest>=8.3",
@@ -39,6 +39,7 @@ python_version = "3.12"
 strict = true
 disallow_any_generics = false
 ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
 
 # allure-pytest ships no type annotations/stubs. Rather than sprinkling
 # `# type: ignore[no-untyped-call]` on every `allure.feature(...)`/

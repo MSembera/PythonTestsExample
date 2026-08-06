@@ -29,10 +29,6 @@ def test_logout_returns_to_a_logged_out_state(admin_page: Page) -> None:
 
     login_page.logout()
 
-    # Verified live on 2026-08-04: clicking Logout does a full navigation to
-    # the public home page. Also confirm the session is really gone (not just
-    # the current view) by navigating straight to the admin rooms page again
-    # and getting the login form instead of the rooms table.
     expect(admin_page.get_by_role("heading", name="Welcome to Shady Meadows B&B")).to_be_visible()
 
     AdminLoginPage(admin_page).open()
