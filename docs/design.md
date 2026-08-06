@@ -105,15 +105,13 @@ Runs in GitHub Actions from `.github/workflows/tests.yml`, on every push and pul
 
 Three jobs run in parallel, each independent (no job waits on another):
 
-- **`lint`** – `ruff check .` and `mypy .`. No browser, runs in seconds, catches style/type issues before the slower jobs even matter.
+- **`lint`** – `ruff check .` and `mypy .`. Catches style/type issues.
 - **`api-tests`** – `pytest -m api` against the live application.
 - **`ui-tests`** – installs Chromium (`playwright install --with-deps chromium`) then `pytest -m ui` against the live application.
 
-**Credentials:** `ADMIN_USERNAME`/`ADMIN_PASSWORD` are stored as GitHub Actions **repository secrets** and injected as environment variables (`${{ secrets.ADMIN_USERNAME }}` etc.), the same variables `config/settings.py` already reads via `.env` locally – no code changes needed between local and CI runs. These specific values aren't actually sensitive (they're this demo app's own published test account, see `docs/app-behavior-notes.md`), but they're still stored as Secrets rather than the weaker "Variables" option: Secrets are encrypted, never redisplayed after creation, and GitHub automatically masks them in logs if they're ever accidentally printed – "Variables" gives none of that. Since this is a public repository, anything in `vars.*` context that leaked into a log line would be visible to anyone on the internet; `secrets.*` gets that protection even for a value that happens not to be sensitive here.
+**Credentials:** `ADMIN_USERNAME`/`ADMIN_PASSWORD` are stored as GitHub Actions **repository secrets** and injected as environment variables (`${{ secrets.ADMIN_USERNAME }}` etc.), the same variables `config/settings.py` already reads via `.env` locally – no code changes needed between local and CI runs.
 
 **Artifacts:** after `api-tests` and `ui-tests` (including on failure, `if: always()`), `allure-results/` is uploaded as a downloadable GitHub Actions artifact – the same directory `allure serve allure-results` reads locally, so a CI run's results can be pulled down and inspected the same way as a local run.
-
-**Deliberately not included:** publishing the Allure HTML report automatically (e.g. to GitHub Pages) – that's a separate piece of infrastructure (a `gh-pages` branch or a dedicated publishing action) or a real feature, not a natural extension of this workflow. A downloadable artifact is enough to prove a run happened and show what it found.
 
 ## Out of scope (for now)
 
