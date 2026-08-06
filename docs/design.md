@@ -11,7 +11,7 @@
 
 ## Priorities and philosophy
 
-The goal is **depth and quality of architecture**, not test quantity. A smaller number of well-designed tests (POM, fixtures, clean structure, type safety, reporting) is preferred over exhaustive coverage of every possible scenario. CI/CD (GitHub Actions) is deliberately deferred to a later phase so the quality of the tests themselves comes first.
+The goal is **depth and quality of architecture**, not test quantity. A smaller number of well-designed tests (POM, fixtures, clean structure, type safety, reporting) is preferred over exhaustive coverage of every possible scenario. CI/CD (GitHub Actions) was deliberately deferred until the test suite itself was solid, then added once that was true – see section 6.
 
 ## 1. Architecture and project structure
 
@@ -56,7 +56,7 @@ Tests can be run separately (`pytest -m api`, `pytest -m ui`) or together, thank
 | Configuration   | `pydantic-settings` + `.env`           | base URL, admin credentials, no hardcoded values                                                                                                          |
 | Reporting       | `allure-pytest`                        | graphical report, steps, screenshots on failure                                                                                                           |
 | Code quality    | `ruff` (lint only) + `mypy`            | consistent style, type checking; `ruff format` / `[tool.ruff.format]` is not configured in this project, so this tooling does not enforce code formatting |
-| CI/CD           | GitHub Actions                         | **later**, as a separate step outside this design                                                                                                         |
+| CI/CD           | GitHub Actions                         | three parallel jobs on push/PR to `main` and on manual trigger – see section 6                                                                            |
 
 **Auth handling (API):** the `admin_token` fixture logs in via `AuthClient` and provides the token/cookie to the other tests that need it (e.g. deleting a room requires auth).
 
@@ -99,9 +99,24 @@ The goal is to have a handful of well-written tests per area (happy path + 1-2 n
 
 > **Note:** the admin UI has no way to delete a room or a booking – deletion only exists at the API level (`DELETE /api/room/{id}`, `DELETE /api/booking/{id}`). In UI tests, deletion is therefore only used to clean up data created by the test (via the API in teardown), never as a tested UI step. See [app-behavior-notes.md](app-behavior-notes.md) for the full, verified API/UI behavior reference.
 
+## 6. CI/CD pipeline
+
+Runs in GitHub Actions from `.github/workflows/tests.yml`, on every push and pull request targeting `main`, plus a manual `workflow_dispatch` trigger (a "Run workflow" button in the Actions tab).
+
+Three jobs run in parallel, each independent (no job waits on another):
+
+- **`lint`** – `ruff check .` and `mypy .`. No browser, runs in seconds, catches style/type issues before the slower jobs even matter.
+- **`api-tests`** – `pytest -m api` against the live application.
+- **`ui-tests`** – installs Chromium (`playwright install --with-deps chromium`) then `pytest -m ui` against the live application.
+
+**Credentials:** `ADMIN_USERNAME`/`ADMIN_PASSWORD` are stored as GitHub Actions **repository secrets** and injected as environment variables (`${{ secrets.ADMIN_USERNAME }}` etc.), the same variables `config/settings.py` already reads via `.env` locally – no code changes needed between local and CI runs. These specific values aren't actually sensitive (they're this demo app's own published test account, see `docs/app-behavior-notes.md`), but they're still stored as Secrets rather than the weaker "Variables" option: Secrets are encrypted, never redisplayed after creation, and GitHub automatically masks them in logs if they're ever accidentally printed – "Variables" gives none of that. Since this is a public repository, anything in `vars.*` context that leaked into a log line would be visible to anyone on the internet; `secrets.*` gets that protection even for a value that happens not to be sensitive here.
+
+**Artifacts:** after `api-tests` and `ui-tests` (including on failure, `if: always()`), `allure-results/` is uploaded as a downloadable GitHub Actions artifact – the same directory `allure serve allure-results` reads locally, so a CI run's results can be pulled down and inspected the same way as a local run.
+
+**Deliberately not included:** publishing the Allure HTML report automatically (e.g. to GitHub Pages) – that's a separate piece of infrastructure (a `gh-pages` branch or a dedicated publishing action) or a real feature, not a natural extension of this workflow. A downloadable artifact is enough to prove a run happened and show what it found.
+
 ## Out of scope (for now)
 
-- CI/CD pipeline (GitHub Actions) – to be added as a separate step once the test suite is complete
 - Message/Report API endpoint – only marginally, not a priority
 - Hybrid API+UI tests (API setup for UI tests) as a general principle – considered but rejected in favor of fully independent suites; one targeted exception (the disposable room in `test_booking_a_room_shows_a_confirmation`) ended up being introduced out of necessity – see the addendum in section 1
 
