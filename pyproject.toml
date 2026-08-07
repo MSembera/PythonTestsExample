@@ -11,6 +11,7 @@ dependencies = [
     "pydantic-settings>=2.5",
     "faker>=30.0",
     "allure-pytest>=2.13",
+    "anthropic>=0.70",
 ]
 
 [dependency-groups]
@@ -25,6 +26,7 @@ addopts = "--alluredir=allure-results --screenshot=only-on-failure --video=retai
 markers = [
     "api: API tests against the Restful Booker Platform REST API",
     "ui: UI tests against the Restful Booker Platform website (Playwright)",
+    "canary: deliberately-failing test that exercises the AI failure-analysis pipeline",
 ]
 
 [tool.ruff]

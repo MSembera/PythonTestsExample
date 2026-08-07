@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_canary:
+        description: Also run the canary test (deliberately fails, exercises the AI failure-analysis pipeline)
+        type: boolean
+        default: false
 
 jobs:
   lint:
@@ -26,12 +31,22 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - run: uv sync
-      - run: uv run pytest -m api
+      - run: uv run pytest -m api --junitxml=test-results/api-results.xml
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: allure-results-api
           path: allure-results
+      - name: AI failure analysis
+        if: failure()
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python scripts/analyze_failures.py test-results/api-results.xml ai-analysis/api-failures.md
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: ai-analysis-api
+          path: ai-analysis
 
   ui-tests:
     runs-on: ubuntu-latest
@@ -43,9 +58,39 @@ jobs:
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - run: uv sync
       - run: uv run playwright install --with-deps chromium
-      - run: uv run pytest -m ui
+      - run: uv run pytest -m ui --junitxml=test-results/ui-results.xml
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: allure-results-ui
           path: allure-results
+      - name: AI failure analysis
+        if: failure()
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python scripts/analyze_failures.py test-results/ui-results.xml ai-analysis/ui-failures.md
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: ai-analysis-ui
+          path: ai-analysis
+
+  canary:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_canary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - run: uv sync
+      - run: uv run pytest -m canary --junitxml=test-results/canary-results.xml
+        continue-on-error: true
+      - name: AI failure analysis
+        if: always()
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python scripts/analyze_failures.py test-results/canary-results.xml ai-analysis/canary-failures.md
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: ai-analysis-canary
+          path: ai-analysis

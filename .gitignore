@@ -9,5 +9,6 @@ allure-report/
 .pytest_cache/
 test-results/
 playwright-report/
+ai-analysis/
 .claude/
 .idea/
