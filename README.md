@@ -1,5 +1,7 @@
 # Restful Booker Platform — Test Automation Suite
 
+[![Tests](https://github.com/MSembera/PythonTestsExample/actions/workflows/tests.yml/badge.svg)](https://github.com/MSembera/PythonTestsExample/actions/workflows/tests.yml)
+
 An automated API + UI test suite for the [Restful Booker Platform](https://github.com/mwinteringham/restful-booker-platform) demo hosted at https://automationintesting.online/.
 
 ## Stack
@@ -13,6 +15,28 @@ An automated API + UI test suite for the [Restful Booker Platform](https://githu
 - **uv** — dependency and environment management
 
 ## Project layout
+
+```
+.
+├── config/
+│   └── settings.py       # single source of configuration (base URL, admin credentials), read from .env
+├── docs/
+│   ├── design.md          # architecture and design rationale
+│   └── app-behavior-notes.md  # verified API/UI behavior of the app under test
+├── tests/
+│   ├── api/
+│   │   ├── conftest.py
+│   │   ├── clients/       # AuthClient, RoomClient, BookingClient — thin wrappers over httpx
+│   │   ├── models/        # pydantic models validating API response shapes
+│   │   ├── factories/     # Faker-based random test data
+│   │   └── test_*.py
+│   └── ui/
+│       ├── conftest.py
+│       ├── pages/         # Page Object Model (HomePage, AdminLoginPage, AdminRoomsPage, ...)
+│       └── test_*.py
+└── .github/workflows/
+    └── tests.yml          # CI: lint, api-tests, ui-tests
+```
 
 - `tests/api/` — API tests (Auth, Room, Booking) against the REST API, using `httpx` clients under `clients/` and Faker-based data under `factories/`.
 - `tests/ui/` — UI tests (public booking flow, admin login, admin room management) using Playwright, with Page Objects under `pages/`.
