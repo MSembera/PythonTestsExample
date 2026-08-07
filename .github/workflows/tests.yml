@@ -90,8 +90,7 @@ jobs:
         with:
           cache-suffix: ${{ github.job }}
       - run: uv sync
-      - run: uv run pytest -m canary --junitxml=test-results/canary-results.xml
-        continue-on-error: true
+      - run: uv run pytest tests/canary -m canary --junitxml=test-results/canary-results.xml
       - name: AI failure analysis
         if: always()
         env:
