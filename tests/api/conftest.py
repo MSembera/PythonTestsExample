@@ -1,3 +1,4 @@
+import time
 from collections.abc import Iterator
 
 import pytest
@@ -37,8 +38,19 @@ def created_room(room_client: RoomClient) -> Iterator[dict]:
     payload = random_room_payload()
     create_response = room_client.create_room(payload)
     assert create_response.status_code == 200, create_response.text
-    rooms = room_client.list_rooms().json()["rooms"]
-    room = next(r for r in rooms if r["roomName"] == payload["roomName"])
+
+    # POST /api/room doesn't return the created room (see app-behavior-notes.md),
+    # so it has to be found by re-listing - on this shared public demo that can
+    # lag behind the create, so retry a few times before giving up for real.
+    room = None
+    for attempt in range(5):
+        rooms = room_client.list_rooms().json()["rooms"]
+        room = next((r for r in rooms if r["roomName"] == payload["roomName"]), None)
+        if room is not None:
+            break
+        if attempt < 4:
+            time.sleep(5)
+    assert room is not None, f"Room {payload['roomName']!r} not found after 5 attempts"
 
     yield room
 

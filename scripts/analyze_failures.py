@@ -55,22 +55,26 @@ def parse_failures(junit_xml_path: Path) -> list[dict[str, str]]:
 
 
 def find_test_source(traceback: str) -> str | None:
-    """Read the source of the file at the last "path.py:line:" seen in the traceback.
+    """Read the source of our own code at the closest "path.py:line:" in the traceback.
 
-    Best-effort: returns None if the traceback has no such location, the path
-    doesn't resolve to a real file under the current working directory (the
-    repo root when run in CI), or it can't be read.
+    Best-effort: walks matches from last (closest to the failure) to first,
+    skipping frames inside installed packages (.venv/site-packages - e.g. a
+    RuntimeError raised deep in pytest's own fixture handling) so we don't
+    hand the model irrelevant library source instead of our own. Returns None
+    if nothing usable is found or a matched path can't be read.
     """
     matches = list(_TRACEBACK_LOCATION_RE.finditer(traceback))
-    if not matches:
-        return None
-    path = Path(matches[-1].group("path")).resolve()
-    if not path.is_relative_to(Path.cwd().resolve()) or not path.is_file():
-        return None
-    source = path.read_text(encoding="utf-8", errors="replace")
-    if len(source) > MAX_SOURCE_CHARS:
-        source = source[:MAX_SOURCE_CHARS] + "\n...(truncated)..."
-    return source
+    for match in reversed(matches):
+        path = Path(match.group("path")).resolve()
+        if "site-packages" in path.parts:
+            continue
+        if not path.is_relative_to(Path.cwd().resolve()) or not path.is_file():
+            continue
+        source = path.read_text(encoding="utf-8", errors="replace")
+        if len(source) > MAX_SOURCE_CHARS:
+            source = source[:MAX_SOURCE_CHARS] + "\n...(truncated)..."
+        return source
+    return None
 
 
 def analyze(client: anthropic.Anthropic, failure: dict[str, str], source: str | None) -> str:
