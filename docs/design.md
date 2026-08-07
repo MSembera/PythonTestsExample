@@ -35,11 +35,14 @@ PythonTestsExample/
 │   │   ├── models/            # pydantic models for request/response (schema validation)
 │   │   ├── factories/         # Faker – random test data generation
 │   │   └── test_*.py
-│   └── ui/
-│       ├── conftest.py
-│       ├── pages/              # Page Object Model (HomePage, AdminLoginPage, AdminRoomsPage...)
-│       ├── components/         # shared UI components across pages (nav, modals)
-│       └── test_*.py
+│   ├── ui/
+│   │   ├── conftest.py
+│   │   ├── pages/              # Page Object Model (HomePage, AdminLoginPage, AdminRoomsPage...)
+│   │   ├── components/         # shared UI components across pages (nav, modals)
+│   │   └── test_*.py
+│   └── canary/                 # deliberately-failing test exercising the CI failure-analysis pipeline
+├── scripts/
+│   └── analyze_failures.py     # summarizes CI failures via Claude – see section 6
 ```
 
 Tests can be run separately (`pytest -m api`, `pytest -m ui`) or together, thanks to the pytest markers `api` and `ui`.
@@ -56,7 +59,8 @@ Tests can be run separately (`pytest -m api`, `pytest -m ui`) or together, thank
 | Configuration   | `pydantic-settings` + `.env`           | base URL, admin credentials, no hardcoded values                                                                                                          |
 | Reporting       | `allure-pytest`                        | graphical report, steps, screenshots on failure                                                                                                           |
 | Code quality    | `ruff` (lint only) + `mypy`            | consistent style, type checking; `ruff format` / `[tool.ruff.format]` is not configured in this project, so this tooling does not enforce code formatting |
-| CI/CD           | GitHub Actions                         | three parallel jobs on push/PR to `main` and on manual trigger – see section 6                                                                            |
+| CI/CD           | GitHub Actions                         | four jobs on push/PR to `main` and on manual trigger (one gated behind a checkbox) – see section 6                                                        |
+| CI failure triage | Claude API (`claude-sonnet-5`)       | advisory-only root-cause summary of failed tests, uploaded as a CI artifact – see section 6                                              |
 
 **Auth handling (API):** the `admin_token` fixture logs in via `AuthClient` and provides the token/cookie to the other tests that need it (e.g. deleting a room requires auth).
 
@@ -101,17 +105,20 @@ The goal is to have a handful of well-written tests per area (happy path + 1-2 n
 
 ## 6. CI/CD pipeline
 
-Runs in GitHub Actions from `.github/workflows/tests.yml`, on every push and pull request targeting `main`, plus a manual `workflow_dispatch` trigger (a "Run workflow" button in the Actions tab).
+Runs in GitHub Actions from `.github/workflows/tests.yml`, on every push and pull request targeting `main`, plus a manual `workflow_dispatch` trigger (a "Run workflow" button in the Actions tab, with a checkbox to also run `canary` below).
 
-Three jobs run in parallel, each independent (no job waits on another):
+Four jobs, each independent (no job waits on another):
 
 - **`lint`** – `ruff check .` and `mypy .`. Catches style/type issues.
 - **`api-tests`** – `pytest -m api` against the live application.
 - **`ui-tests`** – installs Chromium (`playwright install --with-deps chromium`) then `pytest -m ui` against the live application.
+- **`canary`** – manual trigger only; runs one deliberately-failing test (`tests/canary/`) to exercise the AI failure-analysis pipeline below without waiting for a real failure. Scoped to `pytest tests/canary` rather than a bare `-m canary` filter, since pytest still *collects* (imports) `tests/api`/`tests/ui` before marker filtering applies, which would fail on their missing credentials in this job.
 
 **Credentials:** `ADMIN_USERNAME`/`ADMIN_PASSWORD` are stored as GitHub Actions **repository secrets** and injected as environment variables (`${{ secrets.ADMIN_USERNAME }}` etc.), the same variables `config/settings.py` already reads via `.env` locally – no code changes needed between local and CI runs.
 
-**Artifacts:** after `api-tests` and `ui-tests` (including on failure, `if: always()`), `allure-results/` is uploaded as a downloadable GitHub Actions artifact – the same directory `allure serve allure-results` reads locally, so a CI run's results can be pulled down and inspected the same way as a local run.
+**Artifacts:** after each test job (including on failure, `if: always()`), `allure-results/` is uploaded as a downloadable GitHub Actions artifact – the same directory `allure serve allure-results` reads locally, so a CI run's results can be pulled down and inspected the same way as a local run. Retained for 90 days (GitHub's default, and – since this is a public repo – its maximum too).
+
+**AI failure analysis:** on a failed `api-tests`, `ui-tests`, or `canary` job, [`scripts/analyze_failures.py`](../scripts/analyze_failures.py) sends each pytest failure (traceback plus the closest own-project source file – frames inside installed packages are skipped) to Claude (`claude-sonnet-5`) and uploads the resulting root-cause writeup as its own artifact (`ai-analysis-api`/`ai-analysis-ui`/`ai-analysis-canary`). Deliberately advisory: a missing `ANTHROPIC_API_KEY` secret or a failed API call is logged and skipped rather than failing the job, since it runs as a separate `if: always()` step after the tests, not part of them. In practice this has already surfaced real findings beyond the raw traceback – e.g. a stale-price failure in the room-edit UI traced back to `PUT /api/room/{id}` returning `202` (accepted, not necessarily persisted) rather than a bug in the test itself; see [app-behavior-notes.md](app-behavior-notes.md).
 
 ## Out of scope (for now)
 

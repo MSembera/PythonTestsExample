@@ -30,12 +30,15 @@ An automated API + UI test suite for the [Restful Booker Platform](https://githu
 │   │   ├── models/        # pydantic models validating API response shapes
 │   │   ├── factories/     # Faker-based random test data
 │   │   └── test_*.py
-│   └── ui/
-│       ├── conftest.py
-│       ├── pages/         # Page Object Model (HomePage, AdminLoginPage, AdminRoomsPage, ...)
-│       └── test_*.py
+│   ├── ui/
+│   │   ├── conftest.py
+│   │   ├── pages/         # Page Object Model (HomePage, AdminLoginPage, AdminRoomsPage, ...)
+│   │   └── test_*.py
+│   └── canary/            # deliberately-failing test exercising the CI failure-analysis pipeline
+├── scripts/
+│   └── analyze_failures.py  # summarizes CI test failures via Claude — see "CI failure analysis" below
 └── .github/workflows/
-    └── tests.yml          # CI: lint, api-tests, ui-tests
+    └── tests.yml          # CI: lint, api-tests, ui-tests, canary (manual trigger)
 ```
 
 - `tests/api/` — API tests (Auth, Room, Booking) against the REST API, using `httpx` clients under `clients/` and Faker-based data under `factories/`.
@@ -71,6 +74,12 @@ Every run writes raw results to `allure-results/`. To view the HTML report, inst
 ```bash
 allure serve allure-results
 ```
+
+## CI failure analysis
+
+When `api-tests` or `ui-tests` fails in CI, [`scripts/analyze_failures.py`](scripts/analyze_failures.py) sends each failure (traceback plus the relevant source file) to Claude and uploads the resulting Markdown summary as a build artifact (`ai-analysis-api` / `ai-analysis-ui`, next to the Allure results, retained for 90 days). It's advisory only — a missing `ANTHROPIC_API_KEY` repository secret or a failed API call just skips the step silently, never fails the job.
+
+The `canary` job (manual `workflow_dispatch` only, via a checkbox) runs a deliberately-failing test under `tests/canary/` to exercise this same pipeline end-to-end without waiting for a real failure.
 
 ## Code quality
 
