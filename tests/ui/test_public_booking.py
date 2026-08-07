@@ -1,4 +1,5 @@
 import re
+from collections.abc import Callable
 
 import allure
 import pytest
@@ -15,6 +16,16 @@ pytestmark = [pytest.mark.ui, allure.feature("Public Booking")]
 fake = Faker()
 
 
+def _guest_name(generate: Callable[[], str]) -> str:
+    # The app rejects guest names shorter than 3 chars ("size must be between
+    # 3 and 30"); Faker occasionally generates ones that short (e.g. "Jo",
+    # "Li") - regenerate rather than let that rare case fail the test.
+    name = generate()
+    while not (3 <= len(name) <= 30):
+        name = generate()
+    return name
+
+
 def test_home_page_lists_the_available_rooms(page: Page) -> None:
     home = HomePage(page).open()
 
@@ -25,20 +36,14 @@ def test_home_page_lists_the_available_rooms(page: Page) -> None:
 
 
 def test_booking_a_room_shows_a_confirmation(
-    # Fixture teardown runs in reverse declaration order, so listing
-    # room_cleanup before booking_cleanup here makes booking_cleanup's
-    # teardown (deleting the booking) run before room_cleanup's (deleting
-    # the room it belongs to) - the room should still exist when the
-    # booking delete happens. Keep this order if either fixture list grows.
+    # Teardown runs in reverse order, so listing room_cleanup first ensures
+    # the booking is deleted before its room.
     page: Page,
     room_cleanup: RoomCleanup,
     booking_cleanup: dict,
 ) -> None:
-    # Prove the home page's "Book now" link navigates to a reservation page
-    # (test_home_page_lists_the_available_rooms already covers the room
-    # listing itself) - without actually booking the shared seeded "Suite"
-    # room, which risks colliding with a real visitor's booking on this
-    # public demo. The actual booking below uses a disposable room instead.
+    # Just proves navigation works; the actual booking below uses a disposable
+    # room instead of the shared seeded "Suite" room to avoid colliding with real visitors.
     home = HomePage(page).open()
     book_now_link = home.book_now_link("Suite")
     expect(book_now_link).to_be_visible()
@@ -53,13 +58,8 @@ def test_booking_a_room_shows_a_confirmation(
         f"{settings.base_url}/api/room",
         data={
             "roomName": room_name,
-            # "Twin" is not one of the room types asserted on elsewhere in
-            # this file (test_home_page_lists_the_available_rooms checks
-            # "Single"/"Double"/"Suite" with exact=True, a strict-mode
-            # locator that fails on more than one match) - using a
-            # different type here avoids any chance of this disposable
-            # room colliding with that assertion if both happen to exist
-            # at the same moment.
+            # "Twin" avoids colliding with the exact-match room-type
+            # assertions in test_home_page_lists_the_available_rooms.
             "type": "Twin",
             "accessible": True,
             "roomPrice": 225,
@@ -71,14 +71,11 @@ def test_booking_a_room_shows_a_confirmation(
     room_id = int(next(r["roomid"] for r in rooms if r["roomName"] == room_name))
     room_cleanup.room_ids.append(room_id)
 
-    # Far-future dates on a disposable room - the sibling validation test
-    # below already proves this /reservation/{id}?checkin=...&checkout=...
-    # URL shape works.
     reservation = ReservationPage(page).open(
         room_id=room_id, checkin="2028-06-01", checkout="2028-06-03"
     )
     reservation.click_reserve_now()
-    firstname, lastname = fake.first_name(), fake.last_name()
+    firstname, lastname = _guest_name(fake.first_name), _guest_name(fake.last_name)
     # Registered for cleanup as soon as the identifying details are known -
     # before submitting the form - so a failed assertion below still leaves
     # this booking queued for teardown.

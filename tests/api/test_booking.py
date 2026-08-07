@@ -25,10 +25,8 @@ def test_create_booking_is_persisted(
         assert body.lastname == payload["lastname"]
         assert body.bookingdates.model_dump() == payload["bookingdates"]
     finally:
-        # Delete requires auth (DELETE /api/booking/{id} returns 403 without a
-        # token) - use the authenticated client for cleanup even though creation
-        # itself is anonymous/public. Guard against a totally failed create
-        # (no bookingid in the response) so cleanup never crashes the teardown.
+        # Delete requires auth even though create is anonymous; guard against a
+        # totally failed create (no bookingid) so cleanup never crashes.
         if created_bookingid is not None:
             booking_client.delete_booking(created_bookingid)
 
@@ -82,10 +80,8 @@ def test_list_bookings_for_a_room_includes_the_created_booking(
 
 
 def test_list_bookings_without_a_room_id_is_rejected(booking_client: BookingClient) -> None:
-    # GET /api/booking requires auth (401 without
-    # a token), and once authenticated, omitting the roomid query param is a
-    # separate 400 validation error - the client's list_bookings() always
-    # supplies roomid, so this negative case needs a dedicated client method.
+    # list_bookings() always supplies roomid, so this negative case (missing
+    # roomid, once authenticated) needs a dedicated client method.
     response = booking_client.list_bookings_without_room_id()
 
     assert response.status_code == 400

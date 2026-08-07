@@ -30,14 +30,7 @@ def test_creating_a_room_makes_it_appear_in_the_room_list(
         price=321,
         features=["WiFi", "Safe"],
     )
-    # create_room()'s final click fires an async POST /api/room. The
-    # page.request lookup below hits the API directly and shares cookies with
-    # the browser but not scheduling, so calling it immediately can race the
-    # server-side commit and raise StopIteration. expect(...).to_be_visible()
-    # relies on Playwright's auto-waiting, so it only passes once the UI has
-    # re-rendered with server-confirmed data - use it as the synchronization
-    # barrier before looking the room up, while still registering the room
-    # for cleanup (via finally) even if the assertion itself fails.
+
     try:
         expect(admin_page.locator(f"#roomName{room_name}")).to_be_visible()
     finally:
@@ -68,11 +61,10 @@ def test_editing_a_room_updates_its_details(admin_page: Page, room_cleanup: Room
     rooms_page.set_description("updated by an automated test")
     rooms_page.click_update()
 
-    # Scoped to the read-only detail view's "Room price: <span>250</span>"
-    # element (verified live on 2026-08-04) rather than a page-wide
-    # get_by_text("250"), which would also match an unrelated "250" substring
-    # (e.g. a room name or a "£250.00" price tag) elsewhere on the page.
-    expect(rooms_page.room_price_value()).to_have_text("250")
+    # expect_price() is scoped to the read-only detail view's
+    # "Room price: <span>250</span>" element rather than a page-wide get_by_text("250"),
+    # which would also match an unrelated "250" substring elsewhere on the page.
+    rooms_page.expect_price(250)
     expect(admin_page.get_by_text("updated by an automated test")).to_be_visible()
 
 

@@ -1,5 +1,5 @@
 import allure
-from playwright.sync_api import Locator, Page
+from playwright.sync_api import Locator, Page, expect
 
 from config.settings import settings
 
@@ -51,3 +51,15 @@ class AdminRoomsPage:
 
     def room_price_value(self) -> Locator:
         return self.page.locator("p", has_text="Room price:").locator("span")
+
+    def expect_price(self, price: int) -> None:
+        # PUT returns 202 (not necessarily persisted yet); the detail view can
+        # render stale data that never refreshes on its own, so reload instead of just polling.
+        for attempt in range(5):
+            try:
+                expect(self.room_price_value()).to_have_text(str(price), timeout=3000)
+                return
+            except AssertionError:
+                if attempt == 4:
+                    raise
+                self.page.reload()

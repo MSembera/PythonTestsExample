@@ -37,10 +37,8 @@ def test_validate_with_an_invalid_token_is_rejected() -> None:
 
 
 def test_logout_returns_success() -> None:
-    # demo API does not actually invalidate the token on logout (validate()
-    # still returns 200 afterwards) - a real quirk of the app, not a test
-    # bug. This test only asserts the logout call itself succeeds; it does
-    # not assert token invalidation.
+    # Logout doesn't actually invalidate the token (validate() still returns
+    # 200 after) - a real app quirk, so this only asserts the logout call itself.
     auth_client = AuthClient()
     login_response = auth_client.login(settings.admin_username, settings.admin_password)
     token = LoginResponse.model_validate(login_response.json()).token

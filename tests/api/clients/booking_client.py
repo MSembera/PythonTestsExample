@@ -28,10 +28,8 @@ class BookingClient:
         return self._http.get("/api/booking", params={"roomid": room_id})
 
     def list_bookings_without_room_id(self) -> httpx.Response:
-        # Deliberately omits the (normally required) roomid query param, to
-        # exercise the API's "Room ID is required" validation error - the
-        # client requires an authenticated cookie to reach that validation at
-        # all, since an anonymous request is rejected with 401 first.
+        # Deliberately omits roomid to exercise the "Room ID is required"
+        # validation - needs an authenticated cookie or 401 fires first.
         return self._http.get("/api/booking")
 
     def get_booking(self, booking_id: int) -> httpx.Response:

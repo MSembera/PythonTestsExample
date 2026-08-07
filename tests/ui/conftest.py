@@ -71,11 +71,8 @@ def authenticate_via_api(page: Page) -> None:
 @pytest.fixture
 def admin_page(page: Page) -> Page:
     AdminLoginPage(page).open().login(settings.admin_username, settings.admin_password)
-    # The login POST is async; without waiting for it to settle, an immediate
-    # page.goto() in a test (e.g. AdminRoomsPage.open()) cancels the in-flight
-    # request and the browser never becomes authenticated. Waiting for the
-    # post-login dashboard to render guarantees "already logged in" is true
-    # before handing the page back.
+    # Login POST is async; an immediate page.goto() would cancel it, so wait
+    # for the post-login dashboard before handing the page back.
     expect(page.get_by_role("button", name="Create")).to_be_visible()
     return page
 
@@ -103,13 +100,8 @@ def booking_cleanup(page: Page) -> Iterator[dict]:
         ),
         None,
     )
-    # Registration happens before form submission (see the comment at the
-    # call site in test_public_booking.py), so a test that fails before the
-    # booking is actually created reaches teardown with `registered`
-    # populated but no matching booking on the server - guard against that
-    # instead of letting next() raise StopIteration on top of the real
-    # failure (mirrors the `if created_bookingid is not None` guard in
-    # tests/api/test_booking.py).
+    # Registration happens before submission, so a test that fails earlier can
+    # reach teardown with no matching booking on the server - guard against that.
     if match is not None:
         page.request.delete(f"{settings.base_url}/api/booking/{match['bookingid']}")
 
