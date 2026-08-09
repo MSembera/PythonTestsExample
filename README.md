@@ -34,11 +34,15 @@ An automated API + UI test suite for the [Restful Booker Platform](https://githu
 │   │   ├── conftest.py
 │   │   ├── pages/         # Page Object Model (HomePage, AdminLoginPage, AdminRoomsPage, ...)
 │   │   └── test_*.py
-│   └── canary/            # deliberately-failing test exercising the CI failure-analysis pipeline
+│   ├── canary/             # deliberately-failing test exercising the CI failure-analysis pipeline
+│   └── scripts/            # unit tests for scripts/ (e.g. the cleanup filter logic)
 ├── scripts/
-│   └── analyze_failures.py  # summarizes CI test failures via Claude — see "CI failure analysis" below
-└── .github/workflows/
-    └── tests.yml          # CI: lint, api-tests, ui-tests, canary (manual trigger)
+│   ├── analyze_failures.py    # summarizes CI test failures via Claude — see "CI failure analysis" below
+│   └── cleanup_orphan_rooms.py  # deletes stray test-created rooms — see "Maintenance" below
+├── .pre-commit-config.yaml  # optional local ruff/mypy hooks — see "Code quality"
+└── .github/
+    ├── workflows/tests.yml  # CI: lint, api-tests, ui-tests, canary (manual), cleanup-orphans (weekly + manual)
+    └── dependabot.yml      # weekly dependency updates (uv + github-actions)
 ```
 
 - `tests/api/` — API tests (Auth, Room, Booking) against the REST API, using `httpx` clients under `clients/` and Faker-based data under `factories/`.
@@ -87,6 +91,12 @@ The `canary` job (manual `workflow_dispatch` only, via a checkbox) runs a delibe
 uv run ruff check .
 uv run mypy .
 ```
+
+Optionally, run these automatically before every commit: `uv run pre-commit install`.
+
+## Maintenance
+
+[`scripts/cleanup_orphan_rooms.py`](scripts/cleanup_orphan_rooms.py) deletes any stray room (and its bookings) left behind by a hard-killed test run — identified by `roomName` matching this repo's own room-naming convention (a digit-only string in `[500, 99999]`), never the seeded `101`/`102`/`103` or anyone else's data. Runs weekly via CI (`cleanup-orphans` job) and on demand via `workflow_dispatch`; run it locally with `uv run python -m scripts.cleanup_orphan_rooms`.
 
 ## Design notes
 
