@@ -46,6 +46,12 @@ class AdminRoomsPage:
         self.page.locator("#description").fill(description)
 
     def click_update(self) -> None:
+        # A plain click doesn't wait for the PUT it triggers to actually land -
+        # a caller checking the result (even via the API) right after this
+        # returns can race ahead of the request. Wait for the real response.
         with allure.step("Submit the room edit form"):
-            self.page.locator("#update").click()
+            with self.page.expect_response(
+                lambda r: "/api/room/" in r.url and r.request.method == "PUT"
+            ):
+                self.page.locator("#update").click()
 
