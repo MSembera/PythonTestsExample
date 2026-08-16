@@ -11,7 +11,7 @@ dependencies = [
     "pydantic-settings>=2.5",
     "faker>=30.0",
     "allure-pytest>=2.13",
-    "anthropic>=0.70",
+    "anthropic>=0.122.0",
 ]
 
 [dependency-groups]
