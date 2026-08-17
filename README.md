@@ -40,9 +40,8 @@ An automated API + UI test suite for the [Restful Booker Platform](https://githu
 │   ├── analyze_failures.py    # summarizes CI test failures via Claude — see "CI failure analysis" below
 │   └── cleanup_orphan_rooms.py  # deletes stray test-created rooms — see "Maintenance" below
 ├── .pre-commit-config.yaml  # optional local ruff/mypy hooks — see "Code quality"
-└── .github/
-    ├── workflows/tests.yml  # CI: lint, api-tests, ui-tests, canary (manual), cleanup-orphans (weekly + manual)
-    └── dependabot.yml      # weekly dependency updates (uv + github-actions)
+└── .github/workflows/
+    └── tests.yml           # CI: lint, api-tests, ui-tests, canary (manual), cleanup-orphans (weekly + manual)
 ```
 
 - `tests/api/` — API tests (Auth, Room, Booking) against the REST API, using `httpx` clients under `clients/` and Faker-based data under `factories/`.

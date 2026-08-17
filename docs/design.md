@@ -27,8 +27,6 @@ PythonTestsExample/
 ├── .gitignore
 ├── .pre-commit-config.yaml   # optional local ruff/mypy hooks – see section 7
 ├── README.md                 # project description, how to run it, Allure report screenshots
-├── .github/
-│   └── dependabot.yml         # uv + github-actions dependency updates – see section 7
 ├── config/
 │   └── settings.py           # pydantic-settings – reads .env, single source of truth for URL/credentials
 ├── tests/
@@ -129,7 +127,7 @@ Five jobs, each independent (no job waits on another):
 
 **Pre-commit:** `.pre-commit-config.yaml` runs `uv run ruff check .` / `uv run mypy .` as local hooks (`repo: local`), reusing the versions already pinned via `uv` instead of duplicating separate version pins in the hook config. No formatting hook, matching this project's deliberate choice not to enforce `ruff format`. Optional locally (`pre-commit install`) – CI's `lint` job is still the actual gate.
 
-**Dependabot:** `.github/dependabot.yml` covers two ecosystems, both weekly – `uv` (`pyproject.toml`/`uv.lock`) and `github-actions` (keeps the SHA-pinned actions in `tests.yml` current).
+**Dependabot (tried, removed):** ran `uv` + `github-actions` updates weekly, but in practice produced a high volume of low-value PRs for this project's actual dependency churn, and Dependabot-triggered runs don't get repository secrets by default (GitHub treats them like fork PRs) – it caused a confusing API-test failure (`401 Invalid credentials`) before that was diagnosed. Removed in favor of updating dependencies manually as needed.
 
 ## Out of scope (for now)
 
